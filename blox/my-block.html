@@ -18,13 +18,177 @@
 {{/* Access custom front matter design options via `$block.design`. */}}
 {{/* E.g. access a `show_title` field via `$block.design.show_title`. */}}
 
-<div class="flex flex-col items-center max-w-prose mx-auto gap-3 justify-center">
+<canvas></canvas>
+<script>
+Object.getOwnPropertyNames(Math).map(function(p) {
+	window[p] = Math[p];
+});
 
-  <div class="mb-6 text-3xl font-bold text-gray-900 dark:text-white">
-    {{ $title }}
-  </div>
+/* generate random numbers between limits */
+var rand = function(max, min, _int) {
+	var max = ((max - 1) || 0) + 1,
+			min = min || 0,
+			gen = min + (max - min)*random();
 
-  {{ with $text }}
-    <p class="prose prose-slate lg:prose-xl dark:prose-invert max-w-prose">{{ . }}</p>
-  {{ end }}
-</div>
+	return _int?~~gen:gen;
+};
+
+var N = 25,
+
+		c = document.querySelector('canvas'),
+		ct = c.getContext('2d'),
+		w, h, a = .32, k = .64,
+		p = [], attractor = null, rID = null;
+
+var Particle = function(group, x, y, r) {
+	this.group = group || [];
+	this.x = x || rand(w, 0, 1);
+	this.y = y || rand(h, 0, 1);
+	this.r = r || 5;
+	this.vx = 0;
+	this.vy = 0;
+	this.ax = 0;
+	this.ay = 0;
+	this.sh = 0;
+
+	this.setup = function() {
+		var len = this.group.length,
+				dx, dy, d, ang;
+
+		this.ax = 0;
+		this.ay = 0;
+
+		if(attractor) {
+			dx = attractor.x - this.x;
+			dy = attractor.y - this.y;
+			d = hypot(dx, dy);
+			ang = atan2(dy, dx);
+
+			this.ax += N*a/d*cos(ang);
+			this.ay += N*a/d*sin(ang);
+			this.sh = min(w, h)/d;
+		}
+		else {
+			this.sh = 0;
+		}
+
+		for(var i = 0; i < len; i++) {
+			if(this.group[i] !== this) {
+				dx = this.group[i].x - this.x;
+				dy = this.group[i].y - this.y;
+				d = hypot(dx, dy);
+				ang = atan2(dy, dx);
+
+				this.ax -= a/d/len*cos(ang);
+				this.ay -= a/d/len*sin(ang);
+			}
+		}
+	};
+
+	this.handleWallHit = function(dir, lim) {
+    var wall, cond;
+
+    if(lim > 0) {
+      wall = ((dir == 'x')?(w - this.r):(h - this.r));
+      cond = this[dir] > wall - lim*this.r;
+    }
+    else {
+      wall = this.r;
+      cond = this[dir] < wall - lim*this.r
+    }
+
+    if(cond) {
+      this[dir] = wall - lim*this.r;
+      this['v' + dir] *=-1;
+    }
+  };
+
+  this.keepInBounds = function() {
+    this.handleWallHit('x', -1);
+    this.handleWallHit('x', 1);
+    this.handleWallHit('y', -1);
+    this.handleWallHit('y', 1);
+  };
+
+	this.move = function() {
+		this.vx += this.ax;
+		this.vy += this.ay;
+
+		if(abs(this.vx) > 10) { this.vx = sign(this.vx)*10; }
+		if(abs(this.vy) > 10) { this.vy = sign(this.vy)*10; }
+
+		this.x += this.vx;
+		this.y += this.vy;
+
+		this.keepInBounds();
+	};
+
+	this.draw = function() {
+		var hue = min(250, max(0, 250 - 25*hypot(this.vx, this.vy)));
+
+		ct.shadowBlur = this.sh;
+		ct.shadowColor = 'hsl(' + hue + ',100%,80%)';
+		ct.fillStyle = 'hsl(' + hue + ',100%,20%)'
+		ct.beginPath();
+		ct.moveTo(this.x, this.y);
+		ct.arc(this.x, this.y, this.r, 0, 2*PI);
+		ct.closePath();
+		ct.stroke();
+		ct.fill();
+	};
+};
+
+var init = function() {
+	var s = getComputedStyle(c);
+
+	if(rID) {
+		cancelAnimationFrame(rID);
+		rID = null;
+	}
+
+	p = [];
+
+	w = c.width = ~~s.width.split('px')[0];
+	h = c.height = ~~s.height.split('px')[0];
+
+	for(var i = 0; i < N; i++) {
+		p.push(new Particle(p));
+	}
+
+	ct.strokeStyle = '#fff';
+	ct.lineWidth = 2;
+	ani();
+};
+
+var ani = function() {
+	var len = p.length;
+
+	ct.clearRect(0, 0, w, h);
+
+	for(var i = 0; i < len; i++) {
+		p[i].setup();
+		p[i].move();
+		p[i].draw();
+	}
+
+	rID = requestAnimationFrame(ani);
+};
+
+init();
+
+addEventListener('resize', init, false);
+
+addEventListener('mousemove', function(e) {
+	if(!attractor) {
+		attractor = new Particle([], e.clientX, e.clientY);
+	}
+	else {
+		attractor.x = e.clientX;
+		attractor.y = e.clientY;
+	}
+}, false);
+
+addEventListener('mouseout', function(e) {
+	attractor = null;
+}, false);
+</script>
