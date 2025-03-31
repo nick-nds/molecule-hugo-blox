@@ -1,3 +1,3 @@
-module github.com/nick-nds/hugo-blox-molecule
+module github.com/nick-nds/molecule-hugo-blox
 
 go 1.19
